@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI Email Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .input-container, .output-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .input-container {
+            background-color: #f0f0f0;
+        }
+        .output-container {
+            background-color: white;
+        }
+        h1 {
+            background-color: #3f51b5;
+            color: white;
+            padding: 20px;
+            margin: -20px -20px 20px -20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #e91e63;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.2);
+        }
+        .button:hover {
+            background-color: #c2185b;
+        }
+        #chat-history {
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .user-message {
+            background-color: #e1f5fe;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        #html-preview {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-top: 10px;
+            background-color: white;
+            overflow: auto;
+            height: calc(100vh - 200px);
+        }
+        #html-code {
+            display: none;
+            white-space: pre-wrap;
+            font-family: monospace;
+            overflow: auto;
+            height: calc(100vh - 200px);
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .logo-container {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .logo {
+            max-width: 200px;
+            max-height: 100px;
+        }
+        #logo-upload {
+            display: none;
+        }
+        .logo-upload-label {
+            cursor: pointer;
+            color: #3f51b5;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-container">
+            <h1>OpenAI Email Generator</h1>
+            <div class="logo-container">
+                <img id="logo-preview" src="{{ url_for('uploaded_file', filename=logo) }}" alt="Logo" class="logo">
+                <br>
+                <label for="logo-upload" class="button">Upload Logo</label>
+                <input type="file" id="logo-upload" accept="image/*">
+            </div>
+            <form id="chat-form">
+                <label for="system_prompt">System Prompt</label>
+                <textarea id="system_prompt" name="system_prompt" rows="4">{{ system_prompt }}</textarea>
+                
+                <label for="api_key">OpenAI API Key</label>
+                <input type="password" id="api_key" name="api_key" value="{{ api_key }}">
+                
+                <label for="receiver_profile_details">Receiver Profile Details</label>
+                <textarea id="receiver_profile_details" name="receiver_profile_details" rows="3">{{ receiver_profile_details }}</textarea>
+                
+                <label for="sender_profile_details">Sender Profile Details</label>
+                <textarea id="sender_profile_details" name="sender_profile_details" rows="3">{{ sender_profile_details }}</textarea>
+
+                <label for="purpose">Purpose of writing this email</label>
+                <textarea id="purpose" name="purpose" rows="3">{{ purpose }}</textarea>
+
+                <label for="user_message">Need updates to the email? Request below</label>
+                <textarea id="user_message" name="user_message" rows="3"></textarea>
+                
+                <button type="submit" class="button">SEND</button>
+                <button type="button" id="clear-history" class="button">CLEAR HISTORY</button>
+            </form>
+            
+            <h2>Chat History</h2>
+            <div id="chat-history">
+                {% for message in chat_history %}
+                    <div class="user-message">{{ message.content }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="output-container">
+            <h2>Mail Output</h2>
+            <button id="toggle-preview" class="button">Toggle Preview/Code</button>
+            <div id="html-preview"></div>
+            <pre id="html-code"></pre>
+            <div class="loader" id="loader"></div>
+            <button id="copy-html" class="button">COPY HTML</button>
+        </div>
+    </div>
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const chatHistory = document.getElementById('chat-history');
+        const htmlPreview = document.getElementById('html-preview');
+        const htmlCode = document.getElementById('html-code');
+        const togglePreviewButton = document.getElementById('toggle-preview');
+        const clearHistoryButton = document.getElementById('clear-history');
+        const copyHtmlButton = document.getElementById('copy-html');
+        const loader = document.getElementById('loader');
+        const logoUpload = document.getElementById('logo-upload');
+        const logoPreview = document.getElementById('logo-preview');
+
+        logoUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                try {
+                    const response = await fetch('/upload_logo', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        logoPreview.src = `/uploads/${data.filename}`;
+                    } else {
+                        alert(`Error uploading logo: ${data.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while uploading the logo.');
+                }
+            }
+        });
+
+        function getLogoUrl() {
+            return logoPreview.src;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(chatForm);
+            formData.append('logo_url', getLogoUrl());
+            const userMessage = formData.get('user_message');
+            
+            const userMessageElement = document.createElement('div');
+            userMessageElement.className = 'user-message';
+            userMessageElement.textContent = userMessage;
+            chatHistory.appendChild(userMessageElement);
+            
+            document.getElementById('user_message').value = '';
+
+            loader.style.display = 'block';
+            htmlPreview.innerHTML = '';
+            htmlCode.textContent = '';
+
+            try {
+                const response = await fetch('/update_chat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    htmlPreview.innerHTML = data.response;
+                    htmlCode.textContent = data.response;
+                } else {
+                    console.error('API Error:', data.error);
+                    alert(`Error: ${data.error}`);
+                    const errorMessageElement = document.createElement('div');
+                    errorMessageElement.className = 'error-message';
+                    errorMessageElement.textContent = `Error: ${data.error}`;
+                    chatHistory.appendChild(errorMessageElement);
+                }
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                alert(`Connection error: ${error.message}`);
+                const errorMessageElement = document.createElement('div');
+                errorMessageElement.className = 'error-message';
+                errorMessageElement.textContent = `Connection error: ${error.message}`;
+                chatHistory.appendChild(errorMessageElement);
+            } finally {
+                loader.style.display = 'none';
+            }
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        });
+
+        togglePreviewButton.addEventListener('click', () => {
+            if (htmlPreview.style.display === 'none') {
+                htmlPreview.style.display = 'block';
+                htmlCode.style.display = 'none';
+            } else {
+                htmlPreview.style.display = 'none';
+                htmlCode.style.display = 'block';
+            }
+        });
+
+        clearHistoryButton.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/clear_history', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    chatHistory.innerHTML = '';
+                    htmlPreview.innerHTML = '';
+                    htmlCode.textContent = '';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while clearing the history.');
+            }
+        });
+
+        copyHtmlButton.addEventListener('click', () => {
+            const textToCopy = htmlCode.style.display === 'none' ? htmlPreview.innerHTML : htmlCode.textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert('HTML copied to clipboard!');
+            }).catch(err => {
+                console.error('Error copying text: ', err);
+            });
+        });
+    </script>
+</body>
+</html>
