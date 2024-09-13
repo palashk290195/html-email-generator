@@ -4,6 +4,11 @@ from flask_cors import CORS
 from openai import OpenAI
 from flask_session import Session
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+import requests
+import json
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -17,9 +22,31 @@ Session(app)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+UNSPLASH_ACCESS_KEY = os.getenv('UNSPLASH_ACCESS_KEY')
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def search_unsplash(query):
+    url = "https://api.unsplash.com/search/photos"
+    params = {
+        "query": query,
+        "page": 1,
+        "per_page": 1,
+        "client_id": UNSPLASH_ACCESS_KEY
+    }
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        if data['results']:
+            first_image = data['results'][0]
+            return {
+                "url": first_image['urls']['regular'],
+                "description": first_image['description'],
+                "photographer": first_image['user']['name']
+            }
+    return None
+
 
 @app.route('/')
 def index():
@@ -80,12 +107,61 @@ def update_chat():
         messages.extend(chat_history)
         messages.append({"role": "user", "content": user_message})
 
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_unsplash",
+                    "description": "Provide an image URL. Only call this function when there is a new requirement or replacement of image, don't call when image position needs to be changed.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query for the image"
+                            }
+                        },
+                        "required": ["query"],
+                        "additionalPorperties": False
+                    }
+                }
+            }
+        ]
+
         response = client.chat.completions.create(
             model="gpt-4o",
-            messages=messages
+            messages=messages,
+            tools=tools,
         )
-        ai_response = response.choices[0].message.content
 
+        message = response.choices[0].message
+
+        if message.tool_calls:
+            tool_name = message.tool_calls[0].function.name
+            tool_args = eval(message.tool_calls[0].function.arguments)
+            
+            if tool_name == "search_unsplash":
+                image_url = search_unsplash(tool_args['query'])
+                # Create a message containing the result of the function call
+                function_call_result_message = {
+                    "role": "tool",
+                    "content": json.dumps({
+                        "query": tool_args['query'],
+                        "image_url": image_url
+                    }),
+                    "tool_call_id": message.tool_calls[0].id
+                }
+                messages.append(message)
+                messages.append(function_call_result_message)
+                
+                second_response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages
+                )
+                ai_response = second_response.choices[0].message.content
+        else:
+            ai_response = message.content
+        
         chat_history.append({"role": "user", "content": user_message})
         chat_history.append({"role": "assistant", "content": ai_response})
         session['chat_history'] = chat_history

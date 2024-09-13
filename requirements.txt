@@ -1,0 +1,6 @@
+requests
+dotenv
+flask
+flash-session
+flask_cors
+openai
