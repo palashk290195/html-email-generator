@@ -166,6 +166,7 @@ def update_chat():
         # Include the selected template in the system prompt
         template_instruction = ""
         if selected_template != 'None':
+            print(selected_template)
             template_path = os.path.join(EMAIL_TEMPLATES_DIR, selected_template)
             with open(template_path, 'r') as file:
                 template_content = file.read()
@@ -177,9 +178,9 @@ def update_chat():
         
         messages = [
             {"role": "system", "content": session['system_prompt']},
-            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url} \n HTML color theme: {colors[1]} \n\n template_instruction"},
+            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url} \n HTML color theme: {colors[1]} \n\n {template_instruction}"},
         ]
-        
+
         messages.extend(chat_history)
         messages.append({"role": "user", "content": user_message})
 
@@ -241,7 +242,6 @@ def update_chat():
         chat_history.append({"role": "user", "content": user_message})
         chat_history.append({"role": "assistant", "content": ai_response})
         session['chat_history'] = chat_history
-        print(ai_response)
 
         return jsonify({"success": True, "response": ai_response})
     except Exception as e:

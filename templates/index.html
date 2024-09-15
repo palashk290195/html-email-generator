@@ -217,7 +217,8 @@
         const logoPreview = document.getElementById('logo-preview');
         const emailTemplateSelect = document.getElementById('email-template');
         const previewButton = document.getElementById('preview-button');
-        let currentLogoUrl = 'uploads/default_logo.png'; // Set the default logo
+        const baseUrl = `${window.location.protocol}//${window.location.host}`;
+        let currentLogoUrl = `${baseUrl}/uploads/default_logo.png`; // Set the default logo dynamically
         // Display default logo initially
         logoPreview.src = currentLogoUrl;
         logoPreview.style.display = 'block';
