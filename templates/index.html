@@ -135,10 +135,13 @@
         <div class="input-container">
             <h1>OpenAI Email Generator</h1>
             <div class="logo-container">
-                <img id="logo-preview" src="{{ url_for('uploaded_file', filename=logo) }}" alt="Logo" class="logo">
+                <img id="logo-preview" src="" alt="Logo Preview" class="logo" style="display: none;">
                 <br>
                 <label for="logo-upload" class="button">Upload Logo</label>
                 <input type="file" id="logo-upload" accept="image/*">
+                <br>
+                <input type="text" id="logo-fetch-url" placeholder="Enter website URL to fetch without http or www. eg. google.com">
+                <button id="logo-fetch" class="button">Fetch Logo</button>
             </div>
             <form id="chat-form">
                 <label for="system_prompt">System Prompt</label>
@@ -189,26 +192,39 @@
         const copyHtmlButton = document.getElementById('copy-html');
         const loader = document.getElementById('loader');
         const logoUpload = document.getElementById('logo-upload');
+        const logoFetch = document.getElementById('logo-fetch');
+        const logoFetchUrl = document.getElementById('logo-fetch-url');
         const logoPreview = document.getElementById('logo-preview');
+        let currentLogoUrl = '/uploads/default_logo.png'; // Set the default logo
+        // Display default logo initially
+        logoPreview.src = currentLogoUrl;
+        logoPreview.style.display = 'block';
 
         logoUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
+            // window.alert(1)
             if (file) {
                 const formData = new FormData();
                 formData.append('logo', file);
-
+                // window.alert(2)
                 try {
                     const response = await fetch('/upload_logo', {
                         method: 'POST',
                         body: formData
                     });
+                    // window.alert(3)
 
                     const data = await response.json();
                     if (data.success) {
+                        // window.alert(4)
                         logoPreview.src = `/uploads/${data.filename}`;
+                        logoPreview.style.display = 'block';
+                        currentLogoUrl = logoPreview.src;
+                        logoFetchUrl.value = ''; // Reset fetch URL input
                     } else {
                         alert(`Error uploading logo: ${data.error}`);
                     }
+                    
                 } catch (error) {
                     console.error('Error:', error);
                     alert('An error occurred while uploading the logo.');
@@ -216,8 +232,50 @@
             }
         });
 
+        async function fetchLogoFromBackend(website) {
+            try {
+                const response = await fetch('/fetch_logo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ website: website })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    return data.logo_url;
+                } else {
+                    alert('Error: ' + data.error);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Error fetching logo from backend:', error);
+                alert('An error occurred while fetching the logo.');
+                return null;
+            }
+        }
+
+       // Handle logo fetching by website URL
+        logoFetch.addEventListener('click', async () => {
+            const websiteUrl = logoFetchUrl.value.trim(); // Get the website URL from input
+
+            if (websiteUrl) {
+                const logoUrl = await fetchLogoFromBackend(websiteUrl);
+                if (logoUrl) {
+                    // Set the image URL in the preview and update currentLogoUrl
+                    logoPreview.src = logoUrl;
+                    logoPreview.style.display = 'block';
+                    currentLogoUrl = logoUrl; // Update the current logo URL
+                    logoUpload.value = ''; // Reset file input to avoid conflicts
+                }
+            } else {
+                alert('Please enter a valid website URL.');
+            }
+        });
+
         function getLogoUrl() {
-            return logoPreview.src;
+            return currentLogoUrl;
         }
 
         chatForm.addEventListener('submit', async (e) => {

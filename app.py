@@ -61,6 +61,39 @@ def index():
                            chat_history=[msg for msg in session.get('chat_history', []) if msg['role'] == 'user'],
                            logo=session.get('logo', 'default_logo.png'))
 
+# Fetch logo from logo.dev
+def fetch_logo(website):
+    """Fetch logo from logo.dev service."""
+    logo_dev_token = os.getenv("LOGO_DEV_TOKEN")
+    if not logo_dev_token:
+        return None
+    
+    logo_url = f"https://img.logo.dev/{website}?token={logo_dev_token}"
+    try:
+        response = requests.get(logo_url)
+        if response.status_code == 200:
+            return logo_url
+        else:
+            return None
+    except Exception as e:
+        print(f"Error fetching logo: {e}")
+        return None
+
+# Endpoint to get logo URL from backend
+@app.route('/fetch_logo', methods=['POST'])
+def fetch_logo_endpoint():
+    data = request.get_json()
+    website = data.get('website')
+    if not website:
+        return jsonify({'error': 'Website URL is required'}), 400
+    
+    logo_url = fetch_logo(website)
+    if logo_url:
+        return jsonify({'success': True, 'logo_url': logo_url}), 200
+    else:
+        return jsonify({'error': 'Logo not found or error fetching logo'}), 404
+
+
 @app.route('/upload_logo', methods=['POST'])
 def upload_logo():
     if 'logo' not in request.files:
