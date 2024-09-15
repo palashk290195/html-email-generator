@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import requests
 import json
+import colorgram
+import tempfile
 
 load_dotenv()
 
@@ -88,6 +90,24 @@ def update_chat():
         session['purpose'] = data.get('purpose', '')
         user_message = data.get('user_message', '')
         logo_url = data.get('logo_url', '')
+        colors = "Not available"
+
+        response = requests.get(logo_url, stream=True)
+        if response.status_code == 200:
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+
+            # Step 2: Use colorgram to extract colors from the temporary file
+            colors = colorgram.extract(temp_file_path, 2)
+            print(colors)
+
+
+            # Optional: You can delete the temporary file manually if needed
+            os.remove(temp_file_path)
+        else:
+            print("Failed to download image")
 
         if not session['api_key']:
             raise ValueError("API key is missing or empty")
@@ -101,7 +121,7 @@ def update_chat():
         
         messages = [
             {"role": "system", "content": session['system_prompt']},
-            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url}"},
+            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url} \n HTML color theme: {colors[1]}"},
         ]
         
         messages.extend(chat_history)

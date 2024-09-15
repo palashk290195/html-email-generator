@@ -4,3 +4,4 @@ __pycache__/
 .env
 unsplash-testing.py
 function-call-testing.py
+website_theme_extractor_cli.py

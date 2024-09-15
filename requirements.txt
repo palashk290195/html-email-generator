@@ -4,3 +4,7 @@ flask
 flash-session
 flask_cors
 openai
+pillow
+colorthief
+beautifulsoup4
+colorgram
