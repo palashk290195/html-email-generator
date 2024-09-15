@@ -20,6 +20,10 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 Session(app)
 
+# Get list of email templates
+EMAIL_TEMPLATES_DIR = os.path.join(app.root_path, 'templates', 'email-templates')
+email_templates = [f for f in os.listdir(EMAIL_TEMPLATES_DIR) if f.endswith('.html')]
+
 # Ensure the upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -59,7 +63,8 @@ def index():
                            sender_profile_details=session.get('sender_profile_details', ''),
                            purpose=session.get('purpose',''),
                            chat_history=[msg for msg in session.get('chat_history', []) if msg['role'] == 'user'],
-                           logo=session.get('logo', 'default_logo.png'))
+                           logo=session.get('logo', 'default_logo.png'),
+                           email_templates=email_templates)
 
 # Fetch logo from logo.dev
 def fetch_logo(website):
@@ -112,6 +117,15 @@ def upload_logo():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/preview_template/<template_name>')
+def preview_template(template_name):
+    template_path = os.path.join(EMAIL_TEMPLATES_DIR, template_name)
+    if os.path.exists(template_path):
+        with open(template_path, 'r') as file:
+            template_content = file.read()
+        return template_content
+    return "Template not found", 404
+
 @app.route('/update_chat', methods=['POST'])
 def update_chat():
     try:
@@ -123,6 +137,7 @@ def update_chat():
         session['purpose'] = data.get('purpose', '')
         user_message = data.get('user_message', '')
         logo_url = data.get('logo_url', '')
+        selected_template = data.get('selected_template', 'None')
         colors = "Not available"
 
         response = requests.get(logo_url, stream=True)
@@ -148,13 +163,21 @@ def update_chat():
         if 'chat_history' not in session:
             session['chat_history'] = []
 
+        # Include the selected template in the system prompt
+        template_instruction = ""
+        if selected_template != 'None':
+            template_path = os.path.join(EMAIL_TEMPLATES_DIR, selected_template)
+            with open(template_path, 'r') as file:
+                template_content = file.read()
+            template_instruction = f"Use the following HTML email template structure:\n\n{template_content}\n\n"
+
         chat_history = session['chat_history']
         
         client = OpenAI(api_key=session['api_key'])
         
         messages = [
             {"role": "system", "content": session['system_prompt']},
-            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url} \n HTML color theme: {colors[1]}"},
+            {"role": "user", "content": f"Receiver Profile details: {session['receiver_profile_details']} \n Sender Profile details: {session['sender_profile_details']} \n Purpose: {session['purpose']} \n Logo URL: {logo_url} \n HTML color theme: {colors[1]} \n\n template_instruction"},
         ]
         
         messages.extend(chat_history)
@@ -218,6 +241,7 @@ def update_chat():
         chat_history.append({"role": "user", "content": user_message})
         chat_history.append({"role": "assistant", "content": ai_response})
         session['chat_history'] = chat_history
+        print(ai_response)
 
         return jsonify({"success": True, "response": ai_response})
     except Exception as e:

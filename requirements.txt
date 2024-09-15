@@ -8,3 +8,4 @@ pillow
 colorthief
 beautifulsoup4
 colorgram
+mjml

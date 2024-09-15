@@ -128,6 +128,15 @@
             color: #3f51b5;
             text-decoration: underline;
         }
+        #template-selection {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        #preview-button {
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
@@ -146,6 +155,17 @@
             <form id="chat-form">
                 <label for="system_prompt">System Prompt</label>
                 <textarea id="system_prompt" name="system_prompt" rows="4">{{ system_prompt }}</textarea>
+
+                <div id="template-selection">
+                    <label for="email-template">Select Email Template:</label>
+                    <select id="email-template" name="email-template">
+                        <option value="None">None (Custom)</option>
+                        {% for template in email_templates %}
+                            <option value="{{ template }}">{{ template }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="preview-button" class="button">Preview Template</button>
+                </div>
                 
                 <label for="api_key">OpenAI API Key</label>
                 <input type="password" id="api_key" name="api_key" value="{{ api_key }}">
@@ -195,7 +215,9 @@
         const logoFetch = document.getElementById('logo-fetch');
         const logoFetchUrl = document.getElementById('logo-fetch-url');
         const logoPreview = document.getElementById('logo-preview');
-        let currentLogoUrl = '/uploads/default_logo.png'; // Set the default logo
+        const emailTemplateSelect = document.getElementById('email-template');
+        const previewButton = document.getElementById('preview-button');
+        let currentLogoUrl = 'uploads/default_logo.png'; // Set the default logo
         // Display default logo initially
         logoPreview.src = currentLogoUrl;
         logoPreview.style.display = 'block';
@@ -278,10 +300,29 @@
             return currentLogoUrl;
         }
 
+        previewButton.addEventListener('click', async () => {
+            const selectedTemplate = emailTemplateSelect.value;
+            if (selectedTemplate !== 'None') {
+                try {
+                    const response = await fetch(`/preview_template/${selectedTemplate}`);
+                    const templateContent = await response.text();
+                    htmlPreview.innerHTML = templateContent;
+                    htmlCode.textContent = templateContent;
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while previewing the template.');
+                }
+            } else {
+                htmlPreview.innerHTML = '';
+                htmlCode.textContent = '';
+            }
+        });
+
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(chatForm);
             formData.append('logo_url', getLogoUrl());
+            formData.append('selected_template', emailTemplateSelect.value);
             const userMessage = formData.get('user_message');
             
             const userMessageElement = document.createElement('div');
